@@ -1,0 +1,37 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build folders
+bin/
+obj/
+publish/
+
+# Rider/IDE
+.idea/
+*.sublime-workspace
+
+# NuGet
+packages/
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Runtime files
+*.pid
+*.seed
+
+# Resharper
+_ReSharper*/
+
+# Git LFS placeholder (if using large binaries)
+# Add large binary file types to Git LFS instead of repository
