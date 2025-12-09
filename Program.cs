@@ -3,16 +3,67 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using GameLauncher;
 
 internal static class Program
 {
     [STAThread]
     private static void Main()
     {
+        // 0. Initialize Steam API (optional - graceful if not available)
+        bool steamInitialized = false;
+        
         // 1. Locate the launcher and then the game EXE
         string launcherPath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
         string launcherDir = Path.GetDirectoryName(launcherPath) ?? string.Empty;
+        
+        try
+        {
+            // Try to read steam_appid.txt from the launcher directory or game directory
+            // Check for steam_appid.txt in current directory or parent (game) directory
+            string steamAppIdFile = Path.Combine(launcherDir, "steam_appid.txt");
+            if (!File.Exists(steamAppIdFile))
+            {
+                DirectoryInfo parentDir = Directory.GetParent(launcherDir);
+                if (parentDir != null)
+                {
+                    steamAppIdFile = Path.Combine(parentDir.FullName, "steam_appid.txt");
+                }
+            }
 
+            // If steam_appid.txt exists, read the app ID and initialize Steam
+            if (File.Exists(steamAppIdFile))
+            {
+                string appIdText = File.ReadAllText(steamAppIdFile).Trim();
+                if (uint.TryParse(appIdText, out uint appId))
+                {
+                    steamInitialized = SteamManager.Initialize(appId);
+                    
+                    if (steamInitialized)
+                    {
+                        // Request current stats for achievements
+                        SteamManager.RequestCurrentStats();
+                    }
+                }
+            }
+            else
+            {
+                // Try to initialize without app ID (will use existing steam_appid.txt if present)
+                steamInitialized = SteamManager.Initialize();
+                
+                if (steamInitialized)
+                {
+                    SteamManager.RequestCurrentStats();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Steam initialization is optional, so we just log and continue
+            Console.WriteLine($"Steam API initialization skipped or failed: {ex.Message}");
+        }
+
+        // 2. Locate game directory and executable
         // Launcher is in ...\GameFolder\Launcher\Launcher.exe
         // Game is in   ...\GameFolder\Player.exe   (one folder up)
         DirectoryInfo parentDirInfo = Directory.GetParent(launcherDir);
@@ -42,7 +93,7 @@ internal static class Program
         bool changeAttempted = false;
         bool changeSucceeded = false;
 
-        // 2. Show the custom optimization form
+        // 3. Show the custom optimization form
         using (var form = new GameLauncher.OprimizationForm())
         {
             DialogResult result = form.ShowDialog();
@@ -80,7 +131,7 @@ internal static class Program
             }
         }
 
-        // 3. Inform the user if changes were successfully applied
+        // 4. Inform the user if changes were successfully applied
         if (changeAttempted && changeSucceeded)
         {
             MessageBox.Show(
@@ -92,7 +143,7 @@ internal static class Program
                 MessageBoxIcon.Information);
         }
 
-        // 4. Launch the game (always)
+        // 5. Launch the game (always)
         try
         {
             Process gameProcess = new Process
@@ -119,6 +170,14 @@ internal static class Program
                 "Game Launcher",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+        finally
+        {
+            // Shutdown Steam API if it was initialized
+            if (steamInitialized)
+            {
+                SteamManager.Shutdown();
+            }
         }
     }
 }
