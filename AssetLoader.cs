@@ -17,7 +17,10 @@ namespace GameLauncher
         /// PNG image regardless of its extension.
         /// </summary>
         /// <param name="path">Absolute or relative path to the image file.</param>
-        /// <returns>A <see cref="Bitmap"/> containing the decoded image.</returns>
+        /// <returns>
+        /// A <see cref="Bitmap"/> containing the decoded image.
+        /// The caller is responsible for disposing the returned bitmap.
+        /// </returns>
         /// <exception cref="ArgumentException"><paramref name="path"/> is null or empty.</exception>
         /// <exception cref="FileNotFoundException">The file does not exist.</exception>
         internal static Bitmap LoadImage(string path)
@@ -31,17 +34,19 @@ namespace GameLauncher
             string extension = Path.GetExtension(path);
 
             // .p00 files are PNG data with a non-standard extension.
-            // Read the raw bytes and decode them as a PNG image via a
-            // MemoryStream so the decoder relies on file content, not
-            // the file extension.
+            // Stream the file into a MemoryStream so the image decoder
+            // relies on file content (PNG header), not the file extension.
+            // A MemoryStream is used instead of FileStream to avoid
+            // locking the file for the lifetime of the Bitmap.
             if (string.Equals(extension, ".p00", StringComparison.OrdinalIgnoreCase))
             {
-                byte[] bytes = File.ReadAllBytes(path);
-                using (var ms = new MemoryStream(bytes))
+                var ms = new MemoryStream();
+                using (var fs = File.OpenRead(path))
                 {
-                    // Bitmap ctor copies the data, so disposing the stream is safe.
-                    return new Bitmap(ms);
+                    fs.CopyTo(ms);
                 }
+                ms.Position = 0;
+                return new Bitmap(ms);
             }
 
             // For all other extensions, load normally.
@@ -55,7 +60,7 @@ namespace GameLauncher
         /// </summary>
         internal static string NormaliseExtension(string path)
         {
-            string ext = (Path.GetExtension(path) ?? string.Empty).ToLowerInvariant();
+            string ext = Path.GetExtension(path).ToLowerInvariant();
             return ext == ".p00" ? ".png" : ext;
         }
     }
